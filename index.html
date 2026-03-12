@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>GeoGolf: Vibe-coded by Daniel Callegari, 2026</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background-color: #000; color: white; user-select: none; }
+        #globe-container { width: 100vw; height: 100vh; position: absolute; z-index: 1; }
+        
+        .panel {
+            position: absolute; z-index: 10;
+            background: rgba(15, 15, 15, 0.85);
+            padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px); border: 1px solid #444;
+            transition: opacity 0.3s, filter 0.3s;
+        }
+
+        #center-panel { top: 20px; left: 50%; transform: translateX(-50%); width: 300px; }
+        
+        /* Cabeçalho do painel central para alinhar o título e o botão perfeitamente */
+        .panel-header {
+            position: relative;
+            text-align: center;
+            margin-bottom: 15px;
+            min-height: 28px; /* Garante espaço para o botão mesmo se o texto mudar */
+        }
+        
+        .panel-header h2 { 
+            margin: 0; 
+            color: #fff; 
+            font-size: 22px; 
+            display: inline-block;
+        }
+        
+        /* Botão de minimizar/maximizar: ancorado à direita e alinhado no meio (verticalmente) */
+        .toggle-btn {
+            position: absolute;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            background: transparent; 
+            border: none; 
+            color: #ccc; 
+            font-size: 16px;
+            cursor: pointer; 
+            transition: color 0.2s, transform 0.2s; 
+            padding: 5px; /* Área de clique um pouco maior */
+            line-height: 1;
+        }
+        .toggle-btn:hover { 
+            color: white; 
+            transform: translateY(-50%) scale(1.1);
+        }
+        
+        #panel-content { transition: opacity 0.3s ease-in-out; }
+
+        /* Cores em Degradê dos Jogadores e Textos */
+        .grad-p1 { background: linear-gradient(135deg, #FFD700, #FF8C00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .grad-p2 { background: linear-gradient(135deg, #00FF00, #008000); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .text-p1 { color: #FFD700; } 
+        .text-p2 { color: #00FF00; } 
+        .text-target { color: #FF4444; } 
+        
+        #p1-panel { top: 20px; left: 20px; width: 260px; border-top: 4px solid #FFD700; }
+        #p2-panel { top: 20px; right: 20px; width: 260px; border-top: 4px solid #00FF00; }
+
+        .player-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; text-align: center; }
+        .disabled-panel { opacity: 0.4; pointer-events: none; filter: grayscale(80%); }
+
+        /* Rosa dos Ventos Interativa */
+        .compass-wrapper { text-align: center; margin-bottom: 15px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;}
+        .compass-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; color: #ccc;}
+        .compass-value { font-weight: bold; color: white; font-size: 16px;}
+        
+        .compass-container {
+            width: 140px; height: 140px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            position: relative;
+            margin: 0 auto;
+            cursor: crosshair;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 50% 50%;
+            background-position: center center;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        
+        .compass-center { position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 2;}
+        .compass-label { position: absolute; font-size: 12px; font-weight: bold; color: #666; pointer-events: none;}
+        .lbl-n { top: 4px; left: 50%; transform: translateX(-50%); color: #ff4444;}
+        .lbl-s { bottom: 4px; left: 50%; transform: translateX(-50%); }
+        .lbl-e { right: 6px; top: 50%; transform: translateY(-50%); }
+        .lbl-w { left: 6px; top: 50%; transform: translateY(-50%); }
+
+        .compass-pointer {
+            position: absolute; top: 50%; left: 50%;
+            width: 2px; height: 50%;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            pointer-events: none; z-index: 1;
+            transition: transform 0.1s ease-out;
+        }
+        #p1-pointer { background: linear-gradient(to top, transparent, #FFD700); box-shadow: 0 0 5px #FFD700;}
+        #p2-pointer { background: linear-gradient(to top, transparent, #00FF00); box-shadow: 0 0 5px #00FF00;}
+
+        /* Sliders de Força */
+        .slider-group { margin-bottom: 15px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; }
+        .slider-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: #ccc;}
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #555; border-radius: 2px; }
+        #p1-panel input[type=range]::-webkit-slider-thumb { background: #FFD700; box-shadow: 0 0 8px #FFD700;}
+        #p2-panel input[type=range]::-webkit-slider-thumb { background: #00FF00; box-shadow: 0 0 8px #00FF00;}
+
+        /* Botões */
+        button { width: 100%; padding: 12px; color: black; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: transform 0.1s, filter 0.2s; }
+        button:active { transform: scale(0.98); }
+        .btn-p1 { background: linear-gradient(135deg, #FFD700, #FF8C00); } .btn-p1:hover { filter: brightness(1.2); }
+        .btn-p2 { background: linear-gradient(135deg, #00FF00, #008000); color: white;} .btn-p2:hover { filter: brightness(1.2); }
+        .btn-center { background: #4CAF50; color: white; margin-top: 10px;} .btn-center:hover { background: #45a049; }
+        .btn-blue { background: #2196F3; color: white; margin-bottom: 10px; } .btn-blue:hover { background: #1976D2; }
+        .btn-small { padding: 8px; font-size: 12px; background: #444; color: white; margin-bottom: 15px; } .btn-small:hover { background: #666; }
+        
+        select { width: 100%; padding: 8px; border-radius: 4px; background: #333; color: white; border: none;}
+    </style>
+    <script src="https://unpkg.com/three"></script>
+    <script src="https://unpkg.com/globe.gl"></script>
+</head>
+<body>
+
+    <div id="globe-container"></div>
+
+    <div id="center-panel" class="panel">
+        <div class="panel-header">
+            <h2>🌍 GeoGolf</h2>
+            <button id="toggle-panel-btn" class="toggle-btn" onclick="togglePanel()">➖</button>
+        </div>
+        
+        <div id="panel-content">
+            <div id="setup-section">
+                <div style="margin-bottom: 10px; font-size: 14px; text-align: left;">Dificuldade:</div>
+                <select id="diff-select">
+                    <option value="facil">Fácil (Perto)</option>
+                    <option value="medio">Médio (Distância média)</option>
+                    <option value="dificil">Difícil (Lado oposto)</option>
+                </select>
+                <button class="btn-center" onclick="iniciarJogo()">Iniciar Partida</button>
+            </div>
+            
+            <div id="game-status" style="display: none;">
+                <div style="font-size: 14px; color: #ccc;">Destino:</div>
+                <div id="target-name" style="font-weight: bold; margin-bottom: 15px; color: #fff; font-size: 18px;">---</div>
+                
+                <button class="btn-blue" onclick="verAlvo()">👁️ Ver Alvo (<span class="text-target">Vermelho</span>)</button>
+                
+                <div id="message" style="font-weight: bold; min-height: 20px; margin-top: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="p1-panel" class="panel disabled-panel" style="display: none;">
+        <div class="player-title grad-p1">JOGADOR 1</div>
+        <div style="font-size: 13px; margin-bottom: 15px; text-align: center;">Tacadas: <span id="p1-strokes" class="text-p1" style="font-weight:bold; font-size:16px;">0</span> | Alvo: <span id="p1-dist">---</span> km</div>
+        
+        <button class="btn-small" onclick="focarJogador(0)">📍 Focar em Mim</button>
+
+        <div class="compass-wrapper">
+            <div class="compass-header"><label>Direção:</label><span id="p1-angle-val" class="compass-value">0°</span></div>
+            <div class="compass-container" onmousedown="startDrag(event, 0)" onmousemove="doDrag(event, 0)">
+                <div class="compass-label lbl-n">N</div><div class="compass-label lbl-s">S</div>
+                <div class="compass-label lbl-e">L</div><div class="compass-label lbl-w">O</div>
+                <div class="compass-center"></div><div id="p1-pointer" class="compass-pointer"></div>
+            </div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header"><label>Força:</label><span id="p1-dist-val" style="font-weight:bold; color:white;">2500 km</span></div>
+            <input type="range" id="p1-force" min="10" max="5000" step="10" value="2500" oninput="updateForceUI('p1')">
+        </div>
+        <button class="btn-p1" onclick="jogar(0)">TACADA 🏌️‍♂️</button>
+    </div>
+
+    <div id="p2-panel" class="panel disabled-panel" style="display: none;">
+        <div class="player-title grad-p2">JOGADOR 2</div>
+        <div style="font-size: 13px; margin-bottom: 15px; text-align: center;">Tacadas: <span id="p2-strokes" class="text-p2" style="font-weight:bold; font-size:16px;">0</span> | Alvo: <span id="p2-dist">---</span> km</div>
+        
+        <button class="btn-small" onclick="focarJogador(1)">📍 Focar em Mim</button>
+
+        <div class="compass-wrapper">
+            <div class="compass-header"><label>Direção:</label><span id="p2-angle-val" class="compass-value">0°</span></div>
+            <div class="compass-container" onmousedown="startDrag(event, 1)" onmousemove="doDrag(event, 1)">
+                <div class="compass-label lbl-n">N</div><div class="compass-label lbl-s">S</div>
+                <div class="compass-label lbl-e">L</div><div class="compass-label lbl-w">O</div>
+                <div class="compass-center"></div><div id="p2-pointer" class="compass-pointer"></div>
+            </div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header"><label>Força:</label><span id="p2-dist-val" style="font-weight:bold; color:white;">2500 km</span></div>
+            <input type="range" id="p2-force" min="10" max="5000" step="10" value="2500" oninput="updateForceUI('p2')">
+        </div>
+        <button class="btn-p2" onclick="jogar(1)">TACADA 🏌️‍♂️</button>
+    </div>
+
+    <script>
+        // --- BANCO DE DADOS (36 Landmarks) ---
+        const RAIO_TERRA = 6371;
+        const TOLERANCIA_VITORIA = 50;
+        const LANDMARKS = [
+            // Originais
+            { lat: 48.8584, lng: 2.2945, nome: "Torre Eiffel (França)" },
+            { lat: 40.6892, lng: -74.0445, nome: "Estátua da Liberdade (EUA)" },
+            { lat: -22.9519, lng: -43.2105, nome: "Cristo Redentor (Brasil)" },
+            { lat: 35.6586, lng: 139.7454, nome: "Torre de Tóquio (Japão)" },
+            { lat: -33.8568, lng: 151.2153, nome: "Opera House (Austrália)" },
+            { lat: 29.9792, lng: 31.1342, nome: "Pirâmides de Gizé (Egito)" },
+            { lat: 27.1751, lng: 78.0421, nome: "Taj Mahal (Índia)" },
+            { lat: 41.8902, lng: 12.4922, nome: "Coliseu (Itália)" },
+            { lat: -13.1631, lng: -72.5450, nome: "Machu Picchu (Peru)" },
+            { lat: 40.4319, lng: 116.5704, nome: "Muralha da China (China)" },
+            { lat: 20.6843, lng: -88.5678, nome: "Chichén Itzá (México)" },
+            { lat: 51.1789, lng: -1.8262, nome: "Stonehenge (Reino Unido)" },
+            { lat: 25.1972, lng: 55.2744, nome: "Burj Khalifa (EAU)" },
+            { lat: 27.9881, lng: 86.9250, nome: "Monte Everest (Nepal)" },
+            { lat: 37.8199, lng: -122.4783, nome: "Golden Gate Bridge (EUA)" },
+            { lat: 30.3285, lng: 35.4444, nome: "Petra (Jordânia)" },
+            // Novos 20
+            { lat: 35.3606, lng: 138.7274, nome: "Monte Fuji (Japão)" },
+            { lat: 36.1069, lng: -112.1129, nome: "Grand Canyon (EUA)" },
+            { lat: -17.9243, lng: 25.8572, nome: "Cataratas de Vitória (Zâmbia/Zimbábue)" },
+            { lat: 13.4125, lng: 103.8670, nome: "Angkor Wat (Camboja)" },
+            { lat: 41.4036, lng: 2.1744, nome: "Sagrada Família (Espanha)" },
+            { lat: 37.9715, lng: 23.7257, nome: "Acrópole de Atenas (Grécia)" },
+            { lat: 47.5576, lng: 10.7498, nome: "Castelo de Neuschwanstein (Alemanha)" },
+            { lat: 43.0962, lng: -79.0377, nome: "Cataratas do Niágara (Canadá/EUA)" },
+            { lat: -25.3444, lng: 131.0369, nome: "Uluru (Austrália)" },
+            { lat: -20.1338, lng: -67.4891, nome: "Salar de Uyuni (Bolívia)" },
+            { lat: -3.0674, lng: 37.3556, nome: "Monte Kilimanjaro (Tanzânia)" },
+            { lat: 55.7520, lng: 37.6175, nome: "Kremlin de Moscou (Rússia)" },
+            { lat: 40.7580, lng: -73.9855, nome: "Times Square (EUA)" },
+            { lat: -33.9628, lng: 18.4100, nome: "Table Mountain (África do Sul)" },
+            { lat: 51.5007, lng: -0.1246, nome: "Big Ben (Reino Unido)" },
+            { lat: 43.6426, lng: -79.3871, nome: "CN Tower (Canadá)" },
+            { lat: -27.1127, lng: -109.3497, nome: "Ilha de Páscoa (Chile)" },
+            { lat: 48.8606, lng: 2.3376, nome: "Museu do Louvre (França)" },
+            { lat: 29.6580, lng: 91.1169, nome: "Palácio de Potala (China/Tibet)" },
+            { lat: -0.7792, lng: -90.3158, nome: "Ilhas Galápagos (Equador)" }
+        ];
+
+        let estado = { 
+            rodando: false, alvo: {}, turno: 0,
+            jogadores: [
+                { id: 0, cor: '#FFD700', pos: {lat:0, lng:0}, caminhos: [], jogadas: 0, angulo: 0 },
+                { id: 1, cor: '#00FF00', pos: {lat:0, lng:0}, caminhos: [], jogadas: 0, angulo: 0 }
+            ]
+        };
+
+        const world = Globe()(document.getElementById('globe-container'))
+            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+            .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png');
+
+        // --- MATEMÁTICA ---
+        const toRad = (v) => v * Math.PI / 180;
+        const toDeg = (v) => v * 180 / Math.PI;
+
+        function calcularDistancia(lat1, lon1, lat2, lon2) {
+            const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+            const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+            return RAIO_TERRA * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        function calcularNovoPonto(lat, lng, angulo, distancia) {
+            const d = distancia / RAIO_TERRA, brng = toRad(angulo), lat1 = toRad(lat), lon1 = toRad(lng);
+            const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+            const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+            return { lat: toDeg(lat2), lng: toDeg(lon2) };
+        }
+
+        // --- CONTROLES DE INTERFACE E ESTATÍSTICAS ---
+        function togglePanel() {
+            const content = document.getElementById('panel-content');
+            const btn = document.getElementById('toggle-panel-btn');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                btn.innerText = '➖';
+            } else {
+                content.style.display = 'none';
+                btn.innerText = '➕';
+            }
+        }
+
+        function expandirPainel() {
+            document.getElementById('panel-content').style.display = 'block';
+            document.getElementById('toggle-panel-btn').innerText = '➖';
+        }
+
+        function calcularDistanciaTotal(jogador) {
+            let total = 0;
+            jogador.caminhos.forEach(c => {
+                total += calcularDistancia(c.startLat, c.startLng, c.endLat, c.endLng);
+            });
+            return total.toFixed(0);
+        }
+
+        // --- INTERAÇÃO ROSA DOS VENTOS (MOUSE ON QUADRADO) ---
+        let isDraggingCompass = false;
+        window.addEventListener('mouseup', () => { isDraggingCompass = false; });
+
+        function startDrag(e, playerId) { if(estado.turno === playerId && estado.rodando) { isDraggingCompass = true; calcCompassAngle(e, playerId); } }
+        function doDrag(e, playerId) { if(isDraggingCompass && estado.turno === playerId && estado.rodando) calcCompassAngle(e, playerId); }
+
+        function calcCompassAngle(e, playerId) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const dx = e.clientX - (rect.left + rect.width / 2);
+            const dy = e.clientY - (rect.top + rect.height / 2);
+            
+            let deg = Math.atan2(dy, dx) * (180 / Math.PI);
+            deg = (deg + 90) % 360; 
+            if (deg < 0) deg += 360;
+            
+            const finalDeg = Math.round(deg);
+            estado.jogadores[playerId].angulo = finalDeg;
+            
+            const prefix = playerId === 0 ? 'p1' : 'p2';
+            document.getElementById(`${prefix}-pointer`).style.transform = `translate(-50%, -100%) rotate(${finalDeg}deg)`;
+            document.getElementById(`${prefix}-angle-val`).innerText = `${finalDeg}°`;
+        }
+
+        function updateForceUI(prefix) {
+            document.getElementById(prefix + '-dist-val').innerText = document.getElementById(prefix + '-force').value + ' km';
+        }
+
+        // --- CONTROLES DE CÂMERA ---
+        function verAlvo() {
+            if(estado.rodando || !estado.rodando) world.pointOfView({ lat: estado.alvo.lat, lng: estado.alvo.lng, altitude: 1.0 }, 1500);
+        }
+
+        function focarJogador(id) {
+            if(estado.rodando) world.pointOfView({ lat: estado.jogadores[id].pos.lat, lng: estado.jogadores[id].pos.lng, altitude: 1.5 }, 1500);
+        }
+
+        // --- LÓGICA DO JOGO ---
+        function iniciarJogo() {
+            const diff = document.getElementById('diff-select').value;
+            
+            estado.alvo = LANDMARKS[Math.floor(Math.random() * LANDMARKS.length)];
+            
+            let dMin = 1000, dMax = 3000;
+            if (diff === 'medio') { dMin = 4000; dMax = 8000; }
+            else if (diff === 'dificil') { dMin = 9000; dMax = 18000; }
+
+            estado.jogadores.forEach(j => {
+                j.pos = calcularNovoPonto(estado.alvo.lat, estado.alvo.lng, Math.random() * 360, Math.random() * (dMax - dMin) + dMin);
+                j.caminhos = []; j.jogadas = 0;
+            });
+            estado.turno = 0; estado.rodando = true;
+
+            document.getElementById('setup-section').style.display = 'none';
+            document.getElementById('game-status').style.display = 'block';
+            document.getElementById('p1-panel').style.display = 'block';
+            document.getElementById('p2-panel').style.display = 'block';
+            document.getElementById('target-name').innerText = estado.alvo.nome;
+            document.getElementById('message').innerText = "";
+
+            atualizarTurnoUI();
+            atualizarGlobo();
+        }
+
+        function atualizarTurnoUI() {
+            const j1 = estado.jogadores[0], j2 = estado.jogadores[1];
+            
+            document.getElementById('p1-dist').innerText = calcularDistancia(j1.pos.lat, j1.pos.lng, estado.alvo.lat, estado.alvo.lng).toFixed(0);
+            document.getElementById('p2-dist').innerText = calcularDistancia(j2.pos.lat, j2.pos.lng, estado.alvo.lat, estado.alvo.lng).toFixed(0);
+            document.getElementById('p1-strokes').innerText = j1.jogadas;
+            document.getElementById('p2-strokes').innerText = j2.jogadas;
+
+            if (estado.turno === 0) {
+                document.getElementById('p1-panel').classList.remove('disabled-panel');
+                document.getElementById('p2-panel').classList.add('disabled-panel');
+                focarJogador(0);
+            } else {
+                document.getElementById('p2-panel').classList.remove('disabled-panel');
+                document.getElementById('p1-panel').classList.add('disabled-panel');
+                focarJogador(1);
+            }
+        }
+
+        function atualizarGlobo() {
+            let pontos = [];
+            let arcos = [];
+            
+            // Renderiza apenas os pinos dos jogadores
+            estado.jogadores.forEach(j => {
+                pontos.push({ 
+                    lat: j.pos.lat, 
+                    lng: j.pos.lng, 
+                    color: j.cor, 
+                    size: 0.3, 
+                    alt: 0.1 
+                });
+                j.caminhos.forEach(c => arcos.push({...c, cor: j.cor}));
+            });
+
+            world.pointsData(pontos)
+                .pointColor('color')
+                .pointRadius('size')
+                .pointAltitude('alt'); 
+
+            world.arcsData(arcos)
+                .arcStartLat(d=>d.startLat)
+                .arcStartLng(d=>d.startLng)
+                .arcEndLat(d=>d.endLat)
+                .arcEndLng(d=>d.endLng)
+                .arcColor('cor')
+                .arcDashLength(0.4)
+                .arcDashGap(0.2)
+                .arcDashAnimateTime(1500);
+
+            // Alvo renderizado como um anel pulsante usando ringsData
+            world.ringsData([{ lat: estado.alvo.lat, lng: estado.alvo.lng }])
+                .ringColor(() => '#FF4444')
+                .ringMaxRadius(3.5)
+                .ringPropagationSpeed(2)
+                .ringRepeatPeriod(700);
+
+            world.objectsData([]);
+        }
+
+        function jogar(jogadorId) {
+            if (!estado.rodando || estado.turno !== jogadorId) return;
+
+            const prefixo = jogadorId === 0 ? 'p1' : 'p2';
+            const angulo = estado.jogadores[jogadorId].angulo; 
+            const distancia = parseFloat(document.getElementById(`${prefixo}-force`).value);
+
+            const jogador = estado.jogadores[jogadorId];
+            const latAntiga = jogador.pos.lat, lngAntiga = jogador.pos.lng;
+            const novaPos = calcularNovoPonto(latAntiga, lngAntiga, angulo, distancia);
+            
+            jogador.pos = novaPos; jogador.jogadas++;
+            jogador.caminhos.push({ startLat: latAntiga, startLng: lngAntiga, endLat: novaPos.lat, endLng: novaPos.lng });
+
+            atualizarGlobo();
+            
+            const distFinal = calcularDistancia(novaPos.lat, novaPos.lng, estado.alvo.lat, estado.alvo.lng);
+            
+            if (distFinal <= TOLERANCIA_VITORIA) {
+                // Condição de Vitória
+                estado.rodando = false;
+                verAlvo();
+                
+                // Força a exibição do painel central caso esteja minimizado
+                expandirPainel();
+                
+                // Desabilita os painéis de ambos os jogadores
+                document.getElementById('p1-panel').classList.add('disabled-panel');
+                document.getElementById('p2-panel').classList.add('disabled-panel');
+
+                // Calcula estatísticas finais
+                const distP1 = calcularDistanciaTotal(estado.jogadores[0]);
+                const distP2 = calcularDistanciaTotal(estado.jogadores[1]);
+                const tacadasP1 = estado.jogadores[0].jogadas;
+                const tacadasP2 = estado.jogadores[1].jogadas;
+
+                // Monta o placar final
+                const corVencedor = jogadorId === 0 ? 'grad-p1' : 'grad-p2';
+                const htmlResultado = `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #444;">
+                        <div class="${corVencedor}" style="font-size: 20px; margin-bottom: 15px;">
+                            🎉 JOGADOR ${jogadorId + 1} VENCEU!
+                        </div>
+                        <div style="font-size: 14px; text-align: left; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; color: #ddd;">
+                            <strong style="color: #FFD700;">J1:</strong> ${tacadasP1} tacadas | ${distP1} km<br>
+                            <strong style="color: #00FF00; margin-top: 5px; display: inline-block;">J2:</strong> ${tacadasP2} tacadas | ${distP2} km
+                        </div>
+                        <button class="btn-center" style="margin-top:15px;" onclick="location.reload()">Jogar Novamente 🔄</button>
+                    </div>
+                `;
+                
+                document.getElementById('message').innerHTML = htmlResultado;
+                document.getElementById('message').className = ''; 
+            } else {
+                document.getElementById('message').innerText = "Analisando a jogada...";
+                document.getElementById('message').className = ''; document.getElementById('message').style.color = "white";
+                world.pointOfView({ lat: novaPos.lat, lng: novaPos.lng, altitude: 1.5 }, 1500);
+                
+                document.getElementById('p1-panel').classList.add('disabled-panel');
+                document.getElementById('p2-panel').classList.add('disabled-panel');
+
+                setTimeout(() => {
+                    estado.turno = estado.turno === 0 ? 1 : 0;
+                    document.getElementById('message').innerText = `Vez do Jogador ${estado.turno + 1}`;
+                    atualizarTurnoUI();
+                }, 2000); 
+            }
+        }
+    </script>
+</body>
+</html>
