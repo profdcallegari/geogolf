@@ -111,7 +111,7 @@
         .slider-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: #ccc;}
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -6px; }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #555; border-radius: 2px; }
+		input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: linear-gradient(90deg, #333, #888); border-radius: 2px; }
         #p1-panel input[type=range]::-webkit-slider-thumb { background: #FFD700; box-shadow: 0 0 8px #FFD700;}
         #p2-panel input[type=range]::-webkit-slider-thumb { background: #00FF00; box-shadow: 0 0 8px #00FF00;}
 
@@ -371,9 +371,14 @@
 
         function atualizarTurnoUI() {
             const j1 = estado.jogadores[0], j2 = estado.jogadores[1];
-            
-            document.getElementById('p1-dist').innerText = calcularDistancia(j1.pos.lat, j1.pos.lng, estado.alvo.lat, estado.alvo.lng).toFixed(0);
-            document.getElementById('p2-dist').innerText = calcularDistancia(j2.pos.lat, j2.pos.lng, estado.alvo.lat, estado.alvo.lng).toFixed(0);
+            const diff = document.getElementById('diff-select').value;
+
+            // Somente atualiza distancias se for a primeira rodada ou então sempre atualiza se a dificuldade for facil
+            if (diff === 'facil' || j1.jogadas == 0) {
+                document.getElementById('p1-dist').innerText = calcularDistancia(j1.pos.lat, j1.pos.lng, estado.alvo.lat, estado.alvo.lng).toFixed(0);
+                document.getElementById('p2-dist').innerText = calcularDistancia(j2.pos.lat, j2.pos.lng, estado.alvo.lat, estado.alvo.lng).toFixed(0);
+            }
+
             document.getElementById('p1-strokes').innerText = j1.jogadas;
             document.getElementById('p2-strokes').innerText = j2.jogadas;
 
@@ -415,9 +420,10 @@
                 .arcEndLat(d=>d.endLat)
                 .arcEndLng(d=>d.endLng)
                 .arcColor('cor')
-                .arcDashLength(0.4)
+				.arcStroke(0.7)
+                .arcDashLength(0.1)
                 .arcDashGap(0.2)
-                .arcDashAnimateTime(1500);
+                .arcDashAnimateTime(2500);
 
             // Alvo renderizado como um anel pulsante usando ringsData
             world.ringsData([{ lat: estado.alvo.lat, lng: estado.alvo.lng }])
