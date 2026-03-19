@@ -2,4 +2,4 @@
 Um experimento com Vibe Coding
 (c) Daniel Callegari, mar/2026
 
-[Experimente agora](https://profdcallegari.github.io/geogolf/)
+[Clique aqui para jogar agora mesmo!](https://profdcallegari.github.io/geogolf/)
